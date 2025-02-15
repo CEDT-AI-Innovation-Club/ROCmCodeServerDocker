@@ -1,0 +1,39 @@
+services:
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    restart: always
+    command:
+      - "--api.dashboard=false"  # Disable dashboard for security
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"  # HTTP only (Cloudflare handles HTTPS)
+    ports:
+      - "80:80"  # Only HTTP (Cloudflare handles HTTPS)
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  code-server:
+    build: .
+    container_name: code-server
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Bangkok
+    volumes:
+      - /home/<your-user>/.local:/root/.local  # Store extensions inside root's home directory
+      - /home/<your-user>/.config:/root/.config  # Store settings inside root's home directory
+      - /home/<your-user>/services/coder/project:/root/project  # Your workspace
+    devices:
+      - /dev/kfd  # AMD ROCm Kernel Driver
+      - /dev/dri  # Direct Rendering Interface (GPU Access)
+    security_opt:
+      - seccomp:unconfined  # Needed for full GPU access
+    cap_add:
+      - SYS_ADMIN
+    group_add:
+      - "video"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.code-server.rule=Host(`your.custom.domain`)"
+      - "traefik.http.routers.code-server.entrypoints=web"
+      - "traefik.http.services.code-server.loadbalancer.server.port=8080"
